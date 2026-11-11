@@ -3,8 +3,8 @@
 -- Disciplina: Manipulação de Dados / Banco de Dados II (ADS242N01)
 -- Professor: Aguinaldo Neto
 --
--- Aluno:
--- Matrícula:
+-- Aluno:Guilherme Manoel Bezerra Santos
+-- Matrícula:2387020
 --
 -- Escreva cada resposta logo abaixo do comentário da questão.
 -- Comandos que a atividade pede para FALHAR devem ficar comentados,
@@ -21,87 +21,369 @@ CREATE DATABASE hogwarts;
 USE hogwarts;
 
 -- Tabela casa
+CREATE TABLE casa (
+    id_casa INT AUTO_INCREMENT,
+    nome_casa VARCHAR(30) NOT NULL UNIQUE,
+    fundador VARCHAR(60),
+    pontos INT DEFAULT 0,
+
+    PRIMARY KEY (id_casa)
+);
 
 -- Tabela professor
+CREATE TABLE professor (
+    id_prof INT AUTO_INCREMENT,
+    nome VARCHAR(100) NOT NULL,
+    salario DECIMAL(10,2),
+    data_contratacao DATE,
+    id_casa INT,
+
+    PRIMARY KEY (id_prof),
+
+    CONSTRAINT chk_salario
+        CHECK (salario > 0),
+
+    CONSTRAINT fk_professor_casa
+        FOREIGN KEY (id_casa)
+        REFERENCES casa(id_casa)
+);
+
 
 -- Tabela disciplina
+CREATE TABLE disciplina (
+    id_disc INT AUTO_INCREMENT,
+    nome_disc VARCHAR(60) NOT NULL UNIQUE,
+    ano_minimo INT,
+    id_prof INT,
+
+    PRIMARY KEY (id_disc),
+
+    CONSTRAINT chk_ano_minimo
+        CHECK (ano_minimo BETWEEN 1 AND 7),
+
+    CONSTRAINT fk_disciplina_professor
+        FOREIGN KEY (id_prof)
+        REFERENCES professor(id_prof)
+);
+
 
 -- Tabela aluno
+CREATE TABLE aluno (
+    id_aluno INT AUTO_INCREMENT,
+    nome VARCHAR(100) NOT NULL,
+    ano_escolar INT,
+    id_casa INT,
+    saldo_galeoes DECIMAL(10,2) DEFAULT 0,
+
+    PRIMARY KEY (id_aluno),
+
+    CONSTRAINT chk_ano_escolar
+        CHECK (ano_escolar BETWEEN 1 AND 7),
+
+    CONSTRAINT chk_saldo_galeoes
+        CHECK (saldo_galeoes >= 0),
+
+    CONSTRAINT fk_aluno_casa
+        FOREIGN KEY (id_casa)
+        REFERENCES casa(id_casa)
+);
+
 
 -- Tabela matricula
+CREATE TABLE matricula (
+    id_aluno INT,
+    id_disc INT,
+    nota DECIMAL(4,2),
+
+    PRIMARY KEY (id_aluno, id_disc),
+
+    CONSTRAINT chk_nota
+        CHECK (nota BETWEEN 0 AND 10),
+
+    CONSTRAINT fk_matricula_aluno
+        FOREIGN KEY (id_aluno)
+        REFERENCES aluno(id_aluno),
+
+    CONSTRAINT fk_matricula_disciplina
+        FOREIGN KEY (id_disc)
+        REFERENCES disciplina(id_disc)
+);
 
 -- Tabela registro_pontos
+CREATE TABLE registro_pontos (
+    id_registro INT AUTO_INCREMENT,
+    id_aluno INT NOT NULL,
+    id_prof INT NOT NULL,
+    pontos INT NOT NULL,
+    motivo VARCHAR(150),
+    data_registro DATE NOT NULL,
 
+    PRIMARY KEY (id_registro),
+
+    CONSTRAINT fk_registro_aluno
+        FOREIGN KEY (id_aluno)
+        REFERENCES aluno(id_aluno),
+
+    CONSTRAINT fk_registro_professor
+        FOREIGN KEY (id_prof)
+        REFERENCES professor(id_prof)
+);
 -- Tabela produto
+CREATE TABLE produto (
+    id_produto INT AUTO_INCREMENT,
+    nome_produto VARCHAR(100) NOT NULL,
+    loja VARCHAR(50) NOT NULL,
+    preco DECIMAL(10,2),
+    estoque INT DEFAULT 0,
 
+    PRIMARY KEY (id_produto),
+
+    CONSTRAINT chk_preco
+        CHECK (preco > 0),
+
+    CONSTRAINT chk_estoque
+        CHECK (estoque >= 0)
+);
 -- Tabela compra
+CREATE TABLE compra (
+    id_compra INT AUTO_INCREMENT,
+    id_aluno INT,
+    id_produto INT,
+    quantidade INT,
+    valor_total DECIMAL(10,2),
+    data_compra DATE NOT NULL,
+
+    PRIMARY KEY (id_compra),
+
+    CONSTRAINT chk_quantidade
+        CHECK (quantidade > 0),
+
+    CONSTRAINT fk_compra_aluno
+        FOREIGN KEY (id_aluno)
+        REFERENCES aluno(id_aluno),
+
+    CONSTRAINT fk_compra_produto
+        FOREIGN KEY (id_produto)
+        REFERENCES produto(id_produto)
+);
+
 
 -- Tabela log_auditoria
+CREATE TABLE log_auditoria (
+    id_log INT AUTO_INCREMENT,
+    tabela VARCHAR(30),
+    operacao VARCHAR(10),
+    descricao VARCHAR(255),
+    data_hora DATETIME DEFAULT CURRENT_TIMESTAMP,
 
+    PRIMARY KEY (id_log)
+);
 -- Pergunta para pensar: por que matricula usa chave primária composta?
--- Resposta:
+-- Resposta:porque sim
 
 
 -- =====================================================================
 -- 1.1 CARGA INICIAL DE DADOS (DML)
+USE hogwarts;
 -- =====================================================================
 -- INSERT casa
-
+INSERT INTO casa (nome_casa, fundador) VALUES
+('Grifinória', 'Godric Gryffindor'),
+('Sonserina', 'Salazar Slytherin'),
+('Corvinal', 'Rowena Ravenclaw'),
+('Lufa-Lufa', 'Helga Hufflepuff');
 -- INSERT professor
-
+INSERT INTO professor
+(nome, salario, data_contratacao, id_casa) VALUES
+('Minerva McGonagall', 9500.00, '1956-12-01', 1),
+('Severo Snape', 8800.00, '1981-09-01', 2),
+('Fílio Flitwick', 8200.00, '1974-09-01', 3),
+('Pomona Sprout', 7900.00, '1972-09-01', 4),
+('Rúbeo Hagrid', 4500.00, '1993-09-01', NULL),
+('Remo Lupin', 6200.00, '1993-09-01', NULL),
+('Sibila Trelawney', 5100.00, '1980-09-01', NULL),
+('Gilderoy Lockhart', 7000.00, '1992-09-01', NULL),
+('Horácio Slughorn', 8000.00, '1996-09-01', NULL);
 -- INSERT disciplina
-
+INSERT INTO disciplina
+(nome_disc, ano_minimo, id_prof) VALUES
+('Transfiguração', 1, 1),
+('Poções', 1, 2),
+('Feitiços', 1, 3),
+('Herbologia', 1, 4),
+('Trato das Criaturas Mágicas', 3, 5),
+('Defesa Contra as Artes das Trevas', 1, 6),
+('Adivinhação', 3, 7),
+('Estudo dos Trouxas', 3, NULL),
+('Runas Antigas', 3, NULL);
 -- INSERT aluno
-
+INSERT INTO aluno
+(nome, ano_escolar, id_casa, saldo_galeoes) VALUES
+('Harry Potter', 5, 1, 120.00),
+('Hermione Granger', 5, 1, 85.00),
+('Rony Weasley', 5, 1, 12.00),
+('Neville Longbottom', 5, 1, 30.00),
+('Draco Malfoy', 5, 2, 500.00),
+('Pansy Parkinson', 5, 2, 150.00),
+('Vicente Crabbe', 5, 2, 40.00),
+('Luna Lovegood', 4, 3, 45.00),
+('Cho Chang', 6, 3, 200.00),
+('Padma Patil', 5, 3, 60.00),
+('Cedrico Diggory', 7, 4, 180.00),
+('Ana Abbott', 5, 4, 25.00),
+('Ernesto Macmillan', 5, 4, 70.00),
+('Teddy Lupin', 1, NULL, 0.00);
 -- INSERT matricula
-
+INSERT INTO matricula (id_aluno, id_disc, nota) VALUES
+(1, 1, 7.5),
+(1, 2, 5.0),
+(1, 6, 9.8),
+(1, 5, 8.0),
+(2, 1, 10.0),
+(2, 2, 9.5),
+(2, 3, 10.0),
+(2, 5, 9.0),
+(2, 9, 9.5),
+(3, 1, 6.0),
+(3, 2, 4.5),
+(3, 7, 5.5),
+(4, 2, 3.0),
+(4, 4, 10.0),
+(4, 6, 7.0),
+(5, 2, 9.0),
+(5, 1, 7.0),
+(5, 5, 4.0),
+(6, 2, 7.5),
+(6, 7, 6.5),
+(7, 2, 3.5),
+(7, 6, 2.0),
+(8, 5, 8.5),
+(8, 3, 8.0),
+(8, 4, 9.0),
+(9, 3, 8.5),
+(9, 6, 7.5),
+(10, 3, 9.0),
+(10, 7, 6.0),
+(11, 4, 8.5),
+(11, 6, 9.0),
+(11, 1, 8.0),
+(12, 4, 8.0),
+(13, 4, 7.0),
+(13, 3, 7.5);
 -- INSERT produto
-
+INSERT INTO produto
+(nome_produto, loja, preco, estoque) VALUES
+('Varinha de Azevinho', 'Olivaras', 7.00, 10),
+('Vassoura Nimbus 2001', 'Artigos de Quadribol', 300.00, 3),
+('Sapo de Chocolate', 'Dedosdemel', 2.00, 200),
+('Feijõezinhos de Todos os Sabores', 'Dedosdemel', 1.50, 150),
+('Livro Monstruoso dos Monstros', 'Floreios e Borrões', 12.00, 20),
+('Caldeirão de Estanho', 'Caldeirões Potage', 9.00, 0),
+('Kit de Logros', 'Gemialidades Weasley', 25.00, 40),
+('Pena de Repetição Rápida', 'Escribbulus', 15.00, 5);
 -- Confira: SELECT COUNT(*) de cada tabela
-
+SELECT 'casa' AS tabela, COUNT(*) AS total FROM casa
+UNION ALL
+SELECT 'professor', COUNT(*) FROM professor
+UNION ALL
+SELECT 'disciplina', COUNT(*) FROM disciplina
+UNION ALL
+SELECT 'aluno', COUNT(*) FROM aluno
+UNION ALL
+SELECT 'matricula', COUNT(*) FROM matricula
+UNION ALL
+SELECT 'produto', COUNT(*) FROM produto
+UNION ALL
+SELECT 'registro_pontos', COUNT(*) FROM registro_pontos
+UNION ALL
+SELECT 'compra', COUNT(*) FROM compra
+UNION ALL
+SELECT 'log_auditoria', COUNT(*) FROM log_auditoria;
 
 -- =====================================================================
 -- 2. MANUTENÇÃO PÓS-CARGA (ALTER E UPDATE)
 -- =====================================================================
 -- Questão 1
-
+ALTER TABLE aluno
+ADD COLUMN email VARCHAR(100);
 -- Questão 2
-
+ALTER TABLE matricula
+ADD COLUMN situacao VARCHAR(20) DEFAULT 'Cursando';
 -- Questão 3
-
+ALTER TABLE produto
+ADD COLUMN ativo CHAR(1) DEFAULT 'S';
 -- Questão 4
-
+ALTER TABLE casa
+MODIFY COLUMN fundador VARCHAR(100);
 -- Questão 5
-
+ALTER TABLE professor
+RENAME COLUMN data_contratacao TO data_admissao;
 -- Questão 6
-
+UPDATE aluno
+SET email = CONCAT(
+    LOWER(REPLACE(nome, ' ', '.')),
+    '@hogwarts.edu'
+);
 -- Questão 7
-
+ALTER TABLE aluno
+ADD CONSTRAINT uq_aluno_email UNIQUE (email);
 -- Questão 8
-
+UPDATE matricula
+SET nota = LEAST(nota + 0.5, 10)
+WHERE id_disc IN (
+    SELECT id_disc
+    FROM disciplina
+    WHERE id_prof IN (
+        SELECT id_prof
+        FROM professor
+        WHERE nome = 'Remo Lupin'
+    )
+);
 -- Questão 9
-
+UPDATE matricula
+SET situacao = CASE
+    WHEN nota >= 6 THEN 'Aprovado'
+    ELSE 'Reprovado'
+END;
 -- Questão 10
-
+UPDATE professor
+SET salario = salario * 1.10
+WHERE id_casa IS NOT NULL
+AND data_admissao < '1980-01-01';
 -- Questão 11
-
+UPDATE produto
+SET ativo = 'N'
+WHERE estoque = 0;
 -- Questão 12
-
+UPDATE produto
+SET preco = preco * 0.80
+WHERE loja = 'Dedosdemel';
 
 -- =====================================================================
 -- 3. REMOÇÃO DE DADOS (DELETE) E TESTES DE RESTRIÇÕES
 -- =====================================================================
 -- Questão 13
--- Erro:
--- Explicação:
+DELETE FROM casa
+WHERE nome_casa = 'Sonserina';
+-- Erro:Erro 1451:Cannot delete or update a parent row: a foreign key constraint fails.
+-- Explicação:o banco não permite excluir Sonserina porque existem professores e alunos vinculados a essa casa. A chave estrangeira impede excluir um registro que está sendo referenciado por outras tabelas.
 
 -- Questão 14
--- Erro:
--- Explicação:
+INSERT INTO aluno
+(nome, ano_escolar, id_casa, saldo_galeoes, email)
+VALUES
+('Dobby', 8, 1, 0.00, 'dobby@hogwarts.edu');
+-- Erro:Erro 3819:Check constraint is violated.
+-- Explicação:a tabela aluno possui uma restrição CHECK que permite somente anos escolares entre 1 e 7. Como Dobby está sendo cadastrado no 8º ano, o banco rejeita a operação.
 
 -- Questão 15
--- Erro:
--- Explicação:
+INSERT INTO aluno
+(nome, ano_escolar, id_casa, saldo_galeoes, email)
+VALUES
+('Harry Potter (Polissuco)', 5, 1, 0.00,
+ 'harry.potter@hogwarts.edu');
+-- Erro:Erro 1062:Duplicate entry for key 'uq_aluno_email'.
+-- Explicação:o e-mail harry.potter@hogwarts.edu já pertence ao Harry Potter original. Como criamos uma restrição UNIQUE na coluna email, não é permitido cadastrar outro aluno utilizando o mesmo endereço.
 
 -- Questão 16
 -- Erro:
