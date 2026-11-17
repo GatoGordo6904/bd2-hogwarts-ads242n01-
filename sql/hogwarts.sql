@@ -386,63 +386,362 @@ VALUES
 -- Explicação:o e-mail harry.potter@hogwarts.edu já pertence ao Harry Potter original. Como criamos uma restrição UNIQUE na coluna email, não é permitido cadastrar outro aluno utilizando o mesmo endereço.
 
 -- Questão 16
--- Erro:
--- Explicação:
+DELETE FROM professor
+WHERE nome = 'Severo Snape';
+-- Erro: Erro 1451:Cannot delete or update a parent row: a foreign key constraint fails.
+-- Explicação:o banco não permite excluir Severo Snape porque ele está associado à disciplina Poções. A tabela disciplina possui uma chave estrangeira (id_prof) que referencia o professor. Para evitar deixar uma referência inválida, o banco bloqueia a exclusão.
 
 -- Questão 17
-
+DELETE FROM professor
+WHERE nome = 'Gilderoy Lockhart';
+Explicação: esse comando funciona porque Gilderoy Lockhart não possui disciplinas vinculadas a ele nem registros dependentes nas outras tabelas. Portanto, não existe nenhuma chave estrangeira impedindo sua exclusão.
 -- Questão 18
+DELETE FROM matricula
+WHERE id_aluno IN (
+    SELECT id_aluno
+    FROM aluno
+    WHERE nome = 'Vicente Crabbe'
+);
 
+DELETE FROM aluno
+WHERE nome = 'Vicente Crabbe';
 -- Questão 19
+DELETE FROM disciplina
+WHERE id_disc NOT IN (
+    SELECT id_disc
+    FROM matricula
+);
 
-
+SELECT 'professor' AS tabela, COUNT(*) AS total FROM professor
+UNION ALL
+SELECT 'aluno', COUNT(*) FROM aluno
+UNION ALL
+SELECT 'disciplina', COUNT(*) FROM disciplina
+UNION ALL
+SELECT 'matricula', COUNT(*) FROM matricula;
 -- =====================================================================
 -- 4. TRIGGERS
 -- =====================================================================
 -- Questão 20 - trg_pontos_casa
+DELIMITER $$
 
+CREATE TRIGGER trg_pontos_casa
+AFTER INSERT ON registro_pontos
+FOR EACH ROW
+BEGIN
+    UPDATE casa
+    SET pontos = pontos + NEW.pontos
+    WHERE id_casa = (
+        SELECT id_casa
+        FROM aluno
+        WHERE id_aluno = NEW.id_aluno
+    );
+END $$
+
+DELIMITER ;
 -- Questão 21 - trg_valida_compra
+DELIMITER $$
 
+CREATE TRIGGER trg_valida_compra
+BEFORE INSERT ON compra
+FOR EACH ROW
+BEGIN
+    DECLARE v_estoque INT;
+    DECLARE v_preco DECIMAL(10,2);
+    DECLARE v_saldo DECIMAL(10,2);
+
+    SELECT estoque, preco
+    INTO v_estoque, v_preco
+    FROM produto
+    WHERE id_produto = NEW.id_produto;
+
+    SELECT saldo_galeoes
+    INTO v_saldo
+    FROM aluno
+    WHERE id_aluno = NEW.id_aluno;
+
+    IF v_estoque < NEW.quantidade THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Estoque insuficiente no Beco Diagonal';
+
+    ELSEIF v_saldo < (v_preco * NEW.quantidade) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Galeões insuficientes no cofre do aluno';
+
+    ELSE
+        SET NEW.valor_total = v_preco * NEW.quantidade;
+    END IF;
+
+END $$
+
+DELIMITER ;
 -- Questão 22 - trg_baixa_compra
+DELIMITER $$
 
+CREATE TRIGGER trg_baixa_compra
+AFTER INSERT ON compra
+FOR EACH ROW
+BEGIN
+
+    UPDATE produto
+    SET estoque = estoque - NEW.quantidade
+    WHERE id_produto = NEW.id_produto;
+
+    UPDATE aluno
+    SET saldo_galeoes = saldo_galeoes - NEW.valor_total
+    WHERE id_aluno = NEW.id_aluno;
+
+END $$
+
+DELIMITER ;
 -- Questão 23 - trg_situacao_nota
+DELIMITER $$
 
+CREATE TRIGGER trg_situacao_nota
+BEFORE UPDATE ON matricula
+FOR EACH ROW
+BEGIN
+
+    IF NEW.nota >= 6 THEN
+        SET NEW.situacao = 'Aprovado';
+    ELSE
+        SET NEW.situacao = 'Reprovado';
+    END IF;
+
+END $$
+
+DELIMITER ;
 -- Questão 24 - trg_audita_salario
+DELIMITER $$
 
+CREATE TRIGGER trg_audita_salario
+AFTER UPDATE ON professor
+FOR EACH ROW
+BEGIN
+
+    IF OLD.salario <> NEW.salario THEN
+
+        INSERT INTO log_auditoria
+        (tabela, operacao, descricao)
+        VALUES (
+            'professor',
+            'UPDATE',
+            CONCAT(
+                OLD.nome,
+                ': salário de ',
+                OLD.salario,
+                ' para ',
+                NEW.salario
+            )
+        );
+
+    END IF;
+
+END $$
+
+DELIMITER ;
 -- Pergunta para pensar: por que a validação é BEFORE e a baixa é AFTER?
--- Resposta:
+-- Resposta:A validação precisa ser BEFORE porque o sistema deve verificar se há estoque e saldo suficientes antes de permitir o registro da compra. Já a baixa do estoque precisa ser AFTER porque o desconto dos produtos e dos galeões só deve acontecer depois que a compra for registrada com sucesso, evitando alterações indevidas quando uma compra não puder ser realizada.
 
 -- Questão 25 - INSERT registro_pontos
-
+INSERT INTO registro_pontos
+(id_aluno, id_prof, pontos, motivo, data_registro)
+VALUES
+(2, 3, 20, 'Feitiço de levitação perfeito', '2026-09-10'),
+(1, 2, -10, 'Atraso na aula de Poções', '2026-09-12'),
+(5, 2, 15, 'Poção do Morto-Vivo impecável', '2026-09-12'),
+(8, 5, 10, 'Cuidou de um testrálio ferido', '2026-09-20'),
+(11, 4, 25, 'Ajudou os alunos do 1º ano', '2026-09-25'),
+(4, 4, 30, 'Identificou uma Mimbulus mimbletonia', '2026-10-02'),
+(6, 1, -20, 'Fora da cama após o toque de recolher', '2026-10-05'),
+(1, 6, 50, 'Conjurou um Patrono corpóreo', '2026-10-15'),
+(9, 3, 15, 'Duelo exemplar no Clube de Duelos', '2026-10-18'),
+(5, 1, -30, 'Duelo proibido no corredor', '2026-10-31'),
+(10, 7, 5, 'Interpretação da bola de cristal', '2026-11-03'),
+(13, 4, 10, 'Colheita de mandrágoras', '2026-11-05'),
+(3, 9, 10, 'Identificou um bezoar', '2026-11-06'),
+(8, 3, 20, 'Resposta brilhante sobre o Diadema', '2026-11-08'),
+(6, 2, 25, 'Antídoto para venenos comuns', '2026-11-09'),
+(5, 9, 40, 'Melhor poção do Clube do Slugue', '2026-11-09');
 -- Questão 25 - INSERT compra
-
+INSERT INTO compra
+(id_aluno, id_produto, quantidade, data_compra)
+VALUES
+(5, 2, 1, '2026-09-01'),
+(2, 5, 2, '2026-09-02'),
+(1, 3, 10, '2026-09-03'),
+(3, 4, 5, '2026-09-03'),
+(9, 8, 1, '2026-09-15'),
+(8, 5, 1, '2026-09-20'),
+(11, 1, 1, '2026-10-01'),
+(6, 3, 20, '2026-10-10'),
+(1, 7, 2, '2026-10-20'),
+(13, 4, 10, '2026-11-02');
 -- Questão 25 - Rony tenta comprar a Nimbus
+INSERT INTO compra
+(id_aluno, id_produto, quantidade, data_compra)
+VALUES
+(3, 2, 1, '2026-11-10');
 -- Resultado:
-
+a compra é recusada. Rony começou com 12 galeões e gastou 6 na compra de Feijõezinhos, ficando com 6 galeões. A Nimbus custa 300 galeões. O trigger trg_valida_compra identifica que o saldo é insuficiente e gera uma mensagem de erro. Nenhuma compra é registrada e nenhum estoque ou saldo é alterado.
 -- Questão 25 - Hermione tenta comprar o caldeirão
+    INSERT INTO compra
+(id_aluno, id_produto, quantidade, data_compra)
+VALUES
+(2, 6, 1, '2026-11-10');
 -- Resultado:
-
+a compra é recusada porque o Caldeirão de Estanho está com estoque zero. O trigger trg_valida_compra verifica primeiro o estoque e gera a mensagem de estoque insuficiente. A compra não é registrada.
 -- Questão 25 - Recuperação do Rony em Poções
+UPDATE matricula
+SET nota = 6.5
+WHERE id_aluno = 3
+AND id_disc = 2;
 
+SELECT
+    a.nome,
+    d.nome_disc,
+    m.nota,
+    m.situacao
+FROM matricula m
+JOIN aluno a ON a.id_aluno = m.id_aluno
+JOIN disciplina d ON d.id_disc = m.id_disc
+WHERE a.id_aluno = 3
+AND d.id_disc = 2;
 -- Questão 25 - Salário e data de admissão do Hagrid
+UPDATE professor
+SET salario = 5000.00
+WHERE nome = 'Rúbeo Hagrid';
+UPDATE professor
+SET data_admissao = '1993-08-15'
+WHERE nome = 'Rúbeo Hagrid';
+SELECT * FROM log_auditoria;
 -- Linhas em log_auditoria:
--- Por que o reajuste da questão 10 não aparece:
+aparece apenas 1 linha no log_auditoria.
 
+Isso acontece porque o trigger trg_audita_salario registra alterações no salário. A primeira atualização modificou o salário de Hagrid, gerando um registro. A segunda alterou somente a data de admissão, portanto não gerou outro registro.
+-- Por que o reajuste da questão 10 não aparece:
+Porque o reajuste da questão 10 foi executado antes da criação do trigger trg_audita_salario. Naquele momento, o trigger ainda não existia para registrar a alteração.
+
+    SELECT nome_casa, pontos
+FROM casa
+ORDER BY nome_casa;
+SELECT nome, saldo_galeoes
+FROM aluno
+WHERE id_aluno IN (1, 5);
+SELECT nome_produto, estoque
+FROM produto
+WHERE id_produto IN (2, 3);
+SELECT SUM(valor_total) AS total_compras
+FROM compra;
+SELECT COUNT(*) AS total_logs
+FROM log_auditoria;
 
 -- =====================================================================
 -- 5. CONTROLE DE TRANSAÇÕES (TCL)
 -- =====================================================================
 -- Questão 26
+START TRANSACTION;
 
+UPDATE aluno
+SET saldo_galeoes = saldo_galeoes - 50
+WHERE id_aluno = 5;
+
+UPDATE aluno
+SET saldo_galeoes = saldo_galeoes + 50
+WHERE id_aluno = 6;
+
+COMMIT;
+SELECT nome, saldo_galeoes
+FROM aluno
+WHERE id_aluno IN (5, 6);
 -- Questão 27
+START TRANSACTION;
 
+UPDATE casa
+SET pontos = 0;
+
+SELECT nome_casa, pontos
+FROM casa;
+ROLLBACK;
+
+SELECT nome_casa, pontos
+FROM casa;
+Explicação: sim, o placar voltou. O ROLLBACK desfez o UPDATE, restaurando os valores que existiam antes da transação.
 -- Questão 28
+START TRANSACTION;
 
+INSERT INTO compra (id_aluno, id_produto, quantidade, data_compra)
+VALUES (1, 1, 1, '2026-11-10');
+SELECT nome, saldo_galeoes
+FROM aluno
+WHERE id_aluno = 1;
+
+SELECT nome_produto, estoque
+FROM produto
+WHERE id_produto = 1;
+ROLLBACK;
+SELECT nome, saldo_galeoes
+FROM aluno
+WHERE id_aluno = 1;
+
+SELECT nome_produto, estoque
+FROM produto
+WHERE id_produto = 1;
+Explicação: as alterações feitas pelo trigger também foram desfeitas. Como o trigger executou atualizações dentro da mesma transação, o ROLLBACK desfez tanto a compra quanto a baixa do saldo e do estoque.
 -- Questão 29
+START TRANSACTION;
 
+-- a) Ana Abbott recebe 15 pontos
+INSERT INTO registro_pontos
+(id_aluno, id_prof, pontos, motivo, data_registro)
+VALUES
+(12, 4, 15, 'Cuidou das estufas no feriado', '2026-11-10');
+
+-- b) Cria o ponto de salvamento
+SAVEPOINT sp_pontos_legitimos;
+
+-- c) Pansy recebe 100 pontos indevidos
+INSERT INTO registro_pontos
+(id_aluno, id_prof, pontos, motivo, data_registro)
+VALUES
+(6, 2, 100, 'Favoritismo descarado', '2026-11-10');
+
+-- d) Desfaz somente o que aconteceu depois do SAVEPOINT
+ROLLBACK TO SAVEPOINT sp_pontos_legitimos;
+
+-- Confirma o que restou da transação
+COMMIT;
+SELECT nome_casa, pontos
+FROM casa;
+SELECT COUNT(*) AS total_registros
+FROM registro_pontos;
 -- Questão 30
+SELECT @@autocommit;
 -- Resposta:
+O que significa o valor retornado?
+- 1: o MySQL está com o autocommit ativado. Cada comando executado fora de uma transação explícita é confirmado automaticamente.
+- 0: o autocommit está desativado. As alterações precisam ser confirmadas manualmente com COMMIT ou desfeitas com ROLLBACK.
 
+    O que acontece se executar um CREATE TABLE no meio de uma transação?
+
+No MySQL, comandos DDL como CREATE TABLE provocam um COMMIT implícito. Isso significa que a transação aberta é confirmada antes da execução do comando. Portanto, não será possível desfazer as alterações anteriores usando ROLLBACK.
+
+SELECT nome, saldo_galeoes
+FROM aluno
+WHERE id_aluno IN (5, 6);
+SELECT nome, saldo_galeoes
+FROM aluno
+WHERE id_aluno = 1;
+
+SELECT nome_produto, estoque
+FROM produto
+WHERE id_produto = 1;
+SELECT nome_casa, pontos
+FROM casa;
+SELECT COUNT(*) AS total_registros
+FROM registro_pontos;
+SELECT COUNT(*) AS total_logs
+FROM log_auditoria;
 
 -- =====================================================================
 -- 6. DESAFIOS DE CONSULTA
@@ -450,30 +749,101 @@ VALUES
 -- ---------- Nível 1: filtros e operadores especiais ----------
 
 -- 6.1
-
+SELECT
+    p.nome AS nome_professor,
+    p.salario AS salario
+FROM professor AS p
+WHERE p.salario BETWEEN 6000.00 AND 9000.00
+ORDER BY p.salario DESC;
 -- 6.2
-
+SELECT
+    a.nome AS nome_aluno,
+    a.ano_escolar AS ano_escolar
+FROM aluno AS a
+WHERE a.ano_escolar IN (1, 4, 6, 7)
+ORDER BY a.ano_escolar;
 -- 6.3
-
+SELECT
+    a.nome AS nome_aluno
+FROM aluno AS a
+WHERE a.nome LIKE '_a%';
 -- 6.4
-
+SELECT
+    d.nome_disc AS nome_disciplina
+FROM disciplina AS d
+WHERE d.id_prof IS NULL;
 -- 6.5
-
+SELECT
+    pr.nome_produto AS nome_produto,
+    pr.preco AS preco_galeoes
+FROM produto AS pr
+WHERE pr.preco NOT BETWEEN 5.00 AND 20.00
+ORDER BY pr.preco ASC;
 -- 6.6
-
+SELECT DISTINCT
+    pr.loja AS nome_loja
+FROM produto AS pr
+ORDER BY pr.loja ASC;
 -- ---------- Nível 2: JOINs ----------
 
 -- 6.7
+SELECT
+    a.nome AS nome_aluno,
+    c.nome_casa AS nome_casa
+FROM aluno AS a
+INNER JOIN casa AS c
+    ON a.id_casa = c.id_casa
+ORDER BY c.nome_casa, a.nome;
 -- Quantos alunos e por quê:
-
+A consulta retorna só 12 alunos porque o aluno teddy lupin não possui casa
 -- 6.8
-
+SELECT
+    a.nome AS nome_aluno,
+    COALESCE(c.nome_casa, 'Aguardando o Chapéu Seletor') AS casa_aluno
+FROM aluno AS a
+LEFT JOIN casa AS c
+    ON a.id_casa = c.id_casa
+ORDER BY a.nome;
 -- 6.9
-
+SELECT
+    p.nome AS nome_professor
+FROM disciplina AS d
+RIGHT JOIN professor AS p
+    ON d.id_prof = p.id_prof
+WHERE d.id_disc IS NULL;
 -- 6.10
-
+SELECT
+    a.nome AS nome_aluno,
+    d.nome_disc AS nome_disciplina,
+    COALESCE(p.nome, 'Sem professor') AS nome_professor,
+    m.nota AS nota,
+    m.situacao AS situacao
+FROM aluno AS a
+INNER JOIN casa AS c
+    ON a.id_casa = c.id_casa
+INNER JOIN matricula AS m
+    ON a.id_aluno = m.id_aluno
+INNER JOIN disciplina AS d
+    ON m.id_disc = d.id_disc
+LEFT JOIN professor AS p
+    ON d.id_prof = p.id_prof
+WHERE c.nome_casa = 'Grifinória'
+ORDER BY a.nome, d.nome_disc;
 -- 6.11
-
+SELECT
+    cp.id_compra AS numero_compra,
+    a.nome AS nome_aluno,
+    pr.nome_produto AS produto,
+    pr.loja AS loja,
+    cp.quantidade AS quantidade,
+    cp.valor_total AS valor_total,
+    cp.data_compra AS data_compra
+FROM compra AS cp
+INNER JOIN aluno AS a
+    ON cp.id_aluno = a.id_aluno
+INNER JOIN produto AS pr
+    ON cp.id_produto = pr.id_produto
+ORDER BY cp.data_compra ASC, cp.id_compra ASC;
 -- ---------- Nível 3: agrupamento e agregação ----------
 
 -- 6.12
